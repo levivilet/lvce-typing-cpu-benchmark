@@ -76,6 +76,7 @@ class XdotoolInput:
                 self.focus_patterns = [pattern]
                 subprocess.run(["xdotool", "windowfocus", "--sync", window], check=True)
                 self._require_focus()
+                self.open_file(filename, "ctrl+shift+n")
                 return
             time.sleep(.25)
         raise RuntimeError(f"IntelliJ IDEA did not open the fixture {filename} in a project")

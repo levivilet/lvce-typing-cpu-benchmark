@@ -95,17 +95,19 @@ class InputDriverTests(unittest.TestCase):
                          ["xdotool", "mousemove", "--window", "456", "289", "431"])
         self.assertEqual(run.call_args_list[3].args[0], ["xdotool", "click", "1"])
 
-    def test_idea_keeps_an_already_open_fixture_tab(self):
+    def test_idea_navigates_to_the_fixture_before_relying_on_editor_focus(self):
         keyboard = XdotoolInput.__new__(XdotoolInput)
         keyboard.window_id = "123"
         with mock.patch.object(keyboard, "_require_focus"), \
                 mock.patch.object(keyboard, "_visible_window", return_value="456"), \
+                mock.patch.object(keyboard, "open_file") as open_file, \
                 mock.patch("input_driver.subprocess.run") as run:
             keyboard.open_idea_file("typing-cpu.txt")
         self.assertEqual(keyboard.window_id, "456")
         self.assertEqual(run.call_args_list[0].args[0],
                          ["xdotool", "windowfocus", "--sync", "456"])
         self.assertEqual(keyboard.focus_patterns, [r"^typing-cpu .*typing\-cpu\.txt$"])
+        open_file.assert_called_once_with("typing-cpu.txt", "ctrl+shift+n")
 
 
 if __name__ == "__main__":
