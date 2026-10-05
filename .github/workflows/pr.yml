@@ -1,28 +1,25 @@
-name: Desktop typing benchmark
+name: IDEA typing reproduction
 
 on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-  schedule:
-    - cron: '23 5 * * 1'
+  pull_request:
 
 permissions:
   contents: read
 
 concurrency:
-  group: typing-cpu-${{ github.ref }}
+  group: idea-reproduction-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   benchmark:
-    name: Benchmark (${{ matrix.editor }})
+    name: IDEA attempt ${{ matrix.attempt }}
     runs-on: ubuntu-26.04
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        editor: [lvce, vscode, cursor, zed, geany, eclipse, idea, atom, lapce, theia, basic-electron]
+        editor: [idea]
+        attempt: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
     steps:
       - uses: actions/checkout@v5
       - name: Install desktop dependencies
@@ -64,61 +61,12 @@ jobs:
           key: ${{ runner.os }}-${{ runner.arch }}-${{ steps.archive.outputs.key }}
       - name: Measure CPU and memory while typing
         run: |
-          if [[ "${{ github.event_name }}" == pull_request ]]; then
-            bash scripts/run.sh --editor "${{ matrix.editor }}" --repeats 1 --settle-seconds 5 --sample-seconds 180 --cadence-seconds 1
-          else
-            bash scripts/run.sh --editor "${{ matrix.editor }}" --sample-seconds 180 --cadence-seconds 1
-          fi
+          bash scripts/run.sh --editor "${{ matrix.editor }}" --repeats 1 --settle-seconds 10 --sample-seconds 180 --cadence-seconds 1
       - uses: actions/upload-artifact@v5
         if: always()
         with:
-          name: typing-cpu-${{ matrix.editor }}
+          name: idea-attempt-${{ matrix.attempt }}
           path: results/
           if-no-files-found: error
           retention-days: 90
 
-  test:
-    name: benchmark
-    needs: benchmark
-    if: ${{ !cancelled() }}
-    runs-on: ubuntu-26.04
-    steps:
-      - uses: actions/checkout@v5
-      - name: Run accounting tests
-        run: python3 -m unittest discover -s tests
-      - name: Download all editor results
-        if: needs.benchmark.result == 'success'
-        uses: actions/download-artifact@v5
-        with:
-          pattern: typing-cpu-*
-          path: results/editors
-      - name: Build and validate measured report
-        if: needs.benchmark.result == 'success'
-        env:
-          BENCHMARK_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          BENCHMARK_COMMIT: ${{ github.sha }}
-        run: python3 scripts/report.py --run-url "$BENCHMARK_RUN_URL" --commit "$BENCHMARK_COMMIT"
-      - name: Upload Pages artifact
-        if: needs.benchmark.result == 'success' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        uses: actions/upload-pages-artifact@v4
-        with:
-          path: .tmp/pages
-      - name: Require editor matrix success
-        if: needs.benchmark.result != 'success'
-        run: exit 1
-
-  deploy:
-    name: Deploy Pages
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    needs: [benchmark, test]
-    runs-on: ubuntu-26.04
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/configure-pages@v5
-      - uses: actions/deploy-pages@v4
-        id: deployment
