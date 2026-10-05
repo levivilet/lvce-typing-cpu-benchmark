@@ -74,6 +74,7 @@ jobs:
         if: always()
         with:
           name: typing-cpu-${{ matrix.editor }}
+          overwrite: true
           path: results/
           if-no-files-found: error
           retention-days: 90
