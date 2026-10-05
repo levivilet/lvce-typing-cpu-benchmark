@@ -63,12 +63,13 @@ class InputDriverTests(unittest.TestCase):
             keyboard.click_editor((800, 250))
         self.assertEqual(run.call_args_list[-1].args[0], ["xdotool", "click", "1"])
 
-    def test_clear_waits_for_selection_and_deletion_before_save(self):
+    def test_clear_waits_for_editor_focus_selection_and_deletion_before_save(self):
         clock = Clock()
         initial = "First fixture line.\nSecond fixture line.\n"
 
         class DeferredEditor(XdotoolInput):
             def __init__(self):
+                self.focus_ready = float("inf")
                 self.selection_ready = float("inf")
                 self.deletion_ready = float("inf")
 
@@ -76,7 +77,11 @@ class InputDriverTests(unittest.TestCase):
                 pass
 
             def press_key(self, key):
-                if key == "ctrl+a":
+                if key == "Escape":
+                    self.focus_ready = clock.now + .2
+                elif key == "ctrl+a":
+                    if clock.now < self.focus_ready:
+                        raise AssertionError("Select All reached IDEA before the editor had focus")
                     self.selection_ready = clock.now + .2
                 elif key == "BackSpace":
                     if clock.now < self.selection_ready:
@@ -84,6 +89,8 @@ class InputDriverTests(unittest.TestCase):
                     self.deletion_ready = clock.now + .3
 
             def _copied_text(self, deadline):
+                if clock.now < self.focus_ready:
+                    return "/project/typing-cpu.txt"
                 if clock.now >= self.deletion_ready:
                     return "\n"
                 if clock.now >= self.selection_ready:

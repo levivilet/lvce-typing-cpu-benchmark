@@ -326,6 +326,12 @@ class XdotoolInput:
 
     def clear(self, expected_contents: str | None = None) -> None:
         self._require_focus()
+        if expected_contents is not None:
+            # Copy acknowledges which widget handles input after project startup.
+            editor_lines = set(expected_contents.splitlines(keepends=True)) | {"\n", "\r\n"}
+            if self._copied_text(time.monotonic() + 5) not in editor_lines:
+                self.press_key("Escape")
+                self._wait_for_copied_text(editor_lines)
         self.press_key("ctrl+a")
         if expected_contents is not None:
             self._wait_for_copied_text({expected_contents})
