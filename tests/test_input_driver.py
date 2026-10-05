@@ -93,6 +93,7 @@ class InputDriverTests(unittest.TestCase):
             keyboard.accept_idea_project_root()
         self.assertEqual(run.call_args_list[2].args[0],
                          ["xdotool", "mousemove", "--window", "456", "289", "431"])
+        self.assertEqual(run.call_args_list[3].args[0], ["xdotool", "click", "1"])
 
     def test_idea_keeps_an_already_open_fixture_tab(self):
         keyboard = XdotoolInput.__new__(XdotoolInput)
