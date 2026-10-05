@@ -63,53 +63,30 @@ class InputDriverTests(unittest.TestCase):
             keyboard.click_editor((800, 250))
         self.assertEqual(run.call_args_list[-1].args[0], ["xdotool", "click", "1"])
 
-    def test_clear_waits_for_editor_focus_selection_and_deletion_before_save(self):
+    def test_clear_waits_for_selection_and_cut_before_save(self):
         clock = Clock()
         initial = "First fixture line.\nSecond fixture line.\n"
-
-        class DeferredEditor(XdotoolInput):
-            def __init__(self):
-                self.focus_ready = float("inf")
-                self.selection_ready = float("inf")
-                self.deletion_ready = float("inf")
-
-            def _require_focus(self):
-                pass
-
-            def press_key(self, key):
-                if key == "Escape":
-                    self.focus_ready = clock.now + .2
-                elif key == "ctrl+a":
-                    if clock.now < self.focus_ready:
-                        raise AssertionError("Select All reached IDEA before the editor had focus")
-                    self.selection_ready = clock.now + .2
-                elif key == "ctrl+x":
-                    if clock.now < self.selection_ready:
-                        raise AssertionError("Cut reached the editor before Select All")
-                    self.deletion_ready = clock.now + .3
-
-            def _clipboard_text(self, deadline, key="ctrl+c"):
-                if key == "ctrl+x":
-                    self.press_key(key)
-                    clock.sleep(.3)
-                    return initial
-                if clock.now < self.focus_ready:
-                    return "/project/typing-cpu.txt"
-                if clock.now >= self.deletion_ready:
-                    return "\n"
-                if clock.now >= self.selection_ready:
-                    return initial
-                return "First fixture line.\n"
-
-            def save(self):
-                if clock.now < self.deletion_ready:
-                    raise AssertionError("Save reached the editor before deletion")
-
-        keyboard = DeferredEditor()
-        with mock.patch("input_driver.time.monotonic", clock.monotonic), \
-                mock.patch("input_driver.time.sleep", clock.sleep):
+        keyboard = XdotoolInput.__new__(XdotoolInput)
+        keyboard.window_id = "123"
+        events = []
+        def selection(expected):
+            events.append(("selection", expected))
+            clock.sleep(.2)
+        def cut(deadline, key):
+            self.assertEqual(events[-1], ("selection", {initial}))
+            self.assertEqual(key, "ctrl+x")
+            clock.sleep(.3)
+            events.append(("cut", initial))
+            return initial
+        with mock.patch.object(keyboard, "_require_focus"), \
+                mock.patch.object(keyboard, "press_key", side_effect=lambda key: events.append(key)), \
+                mock.patch.object(keyboard, "_wait_for_selection", side_effect=selection), \
+                mock.patch.object(keyboard, "_clipboard_text", side_effect=cut), \
+                mock.patch("input_driver.subprocess.run"), \
+                mock.patch("input_driver.time.monotonic", clock.monotonic):
             keyboard.clear(initial)
-            keyboard.save()
+        self.assertEqual(events, [("selection", {"First", initial}), "ctrl+a",
+                                  ("selection", {initial}), ("cut", initial)])
 
     def test_copied_text_rejects_a_stale_clipboard_value(self):
         keyboard = XdotoolInput.__new__(XdotoolInput)
@@ -140,14 +117,31 @@ class InputDriverTests(unittest.TestCase):
             self.assertEqual(keyboard._clipboard_text(1, "ctrl+x"), "selected fixture")
         press.assert_called_once_with("ctrl+x")
 
+    def test_selection_readback_waits_without_sending_copy_or_changing_selection(self):
+        keyboard = XdotoolInput.__new__(XdotoolInput)
+        clock = Clock()
+        selected = "First fixture line.\nSecond fixture line.\n"
+        responses = [mock.Mock(returncode=0, stdout="typing-cpu-selection"),
+                     mock.Mock(returncode=0, stdout="First"),
+                     mock.Mock(returncode=0, stdout=selected)]
+        with mock.patch("input_driver.subprocess.run", side_effect=responses) as run, \
+                mock.patch.object(keyboard, "press_key") as press, \
+                mock.patch("input_driver.time.monotonic", clock.monotonic), \
+                mock.patch("input_driver.time.sleep", clock.sleep):
+            keyboard._wait_for_selection({selected})
+        self.assertGreater(clock.now, 0)
+        press.assert_not_called()
+        self.assertTrue(all(call.args[0] == ["xclip", "-selection", "primary", "-o"]
+                            for call in run.call_args_list))
+
     def test_selection_readiness_rejects_input_in_another_widget(self):
         keyboard = XdotoolInput.__new__(XdotoolInput)
         clock = Clock()
-        with mock.patch.object(keyboard, "_clipboard_text", return_value="project/file.txt"), \
+        with mock.patch("input_driver.subprocess.run", return_value=mock.Mock(returncode=0, stdout="project/file.txt")), \
                 mock.patch("input_driver.time.monotonic", clock.monotonic), \
                 mock.patch("input_driver.time.sleep", clock.sleep):
             with self.assertRaisesRegex(RuntimeError, "expected selection state"):
-                keyboard._wait_for_copied_text({"First fixture line.\nSecond fixture line.\n"})
+                keyboard._wait_for_selection({"First fixture line.\nSecond fixture line.\n"})
 
     def test_xdotool_driver_rejects_missing_fixture_window(self):
         with mock.patch("input_driver.subprocess.run", return_value=mock.Mock(

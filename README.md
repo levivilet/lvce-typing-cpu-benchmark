@@ -25,7 +25,8 @@ raw JSON for every editor. An incomplete or invalid matrix is not published.
   benchmark fixture. The trial starts settling only after a visible Cursor
   window title contains the fixture name.
 - IntelliJ IDEA acknowledges editor focus, whole-fixture selection, and Cut
-  through the X11 clipboard, then verifies that the cleared file was saved.
+  through X11 PRIMARY selection and the clipboard, then verifies that the
+  cleared file was saved.
   These setup actions finish before CPU and RSS sampling.
 - Startup and settling happen before typing. The default X11 driver focuses the
   visible window whose title contains the fixture name and verifies focus
