@@ -238,7 +238,11 @@ def trial(editor, settle_seconds, sample_seconds, input_driver, cadence_seconds)
         workspace = home / "typing-cpu"
         workspace.mkdir()
         fixture = workspace / "typing-cpu.txt"
-        fixture.write_text("Typing CPU benchmark fixture.\n")
+        initial_contents = "Typing CPU benchmark fixture.\n"
+        if editor["id"] == "idea":
+            # Two lines distinguish Select All from IDEA's copy-current-line action.
+            initial_contents += "Selection readiness sentinel.\n"
+        fixture.write_text(initial_contents)
         command = command_for(editor, home)
         if editor["id"] == "eclipse":
             workspace_index = command.index("-data") + 1
@@ -315,10 +319,12 @@ def trial(editor, settle_seconds, sample_seconds, input_driver, cadence_seconds)
                 keyboard.open_selected_file()
             if editor["id"] == "theia":
                 keyboard.click_editor(click_positions["theia"])
-            keyboard.clear()
             if editor["id"] == "idea":
+                keyboard.clear(initial_contents)
                 keyboard.save()
                 wait_for_cleared_fixture(fixture)
+            else:
+                keyboard.clear()
             time.sleep(.5)
             measurement = typing_measurement(process, keyboard, fixture,
                                              sample_seconds, cadence_seconds)

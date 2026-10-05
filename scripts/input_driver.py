@@ -303,10 +303,35 @@ class XdotoolInput:
                     break
                 time.sleep(.25)
 
-    def clear(self) -> None:
+    def _copied_text(self, deadline: float) -> str:
+        marker = f"typing-cpu-clipboard-{time.monotonic_ns()}"
+        subprocess.run(["xclip", "-selection", "clipboard"], input=marker, text=True,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True, timeout=2)
+        self.press_key("ctrl+c")
+        while time.monotonic() < deadline:
+            copied = subprocess.run(["xclip", "-selection", "clipboard", "-o"],
+                                    capture_output=True, text=True, check=False, timeout=2)
+            if copied.returncode == 0 and copied.stdout != marker:
+                return copied.stdout
+            time.sleep(.01)
+        raise RuntimeError("IDEA did not acknowledge copying the editor contents")
+
+    def _wait_for_copied_text(self, expected: set[str]) -> None:
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            if self._copied_text(deadline) in expected:
+                return
+            time.sleep(.05)
+        raise RuntimeError("IDEA editor contents did not reach the expected selection state")
+
+    def clear(self, expected_contents: str | None = None) -> None:
         self._require_focus()
-        subprocess.run(["xdotool", "key", "--clearmodifiers", "ctrl+a"], check=True)
-        subprocess.run(["xdotool", "key", "--clearmodifiers", "BackSpace"], check=True)
+        self.press_key("ctrl+a")
+        if expected_contents is not None:
+            self._wait_for_copied_text({expected_contents})
+        self.press_key("BackSpace")
+        if expected_contents is not None:
+            self._wait_for_copied_text({"", "\n", "\r\n"})
 
     def type_character(self, character: str) -> None:
         self._require_focus()
