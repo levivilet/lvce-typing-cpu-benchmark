@@ -303,23 +303,26 @@ class XdotoolInput:
                     break
                 time.sleep(.25)
 
-    def _copied_text(self, deadline: float) -> str:
+    def _clipboard_text(self, deadline: float, key: str = "ctrl+c") -> str:
         marker = f"typing-cpu-clipboard-{time.monotonic_ns()}"
         subprocess.run(["xclip", "-selection", "clipboard"], input=marker, text=True,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True, timeout=2)
-        self.press_key("ctrl+c")
+        self.press_key(key)
         while time.monotonic() < deadline:
             copied = subprocess.run(["xclip", "-selection", "clipboard", "-o"],
                                     capture_output=True, text=True, check=False, timeout=2)
             if copied.returncode == 0 and copied.stdout != marker:
                 return copied.stdout
+            if key == "ctrl+c":
+                # Copy is a readback; selection-changing actions are sent only once.
+                self.press_key(key)
             time.sleep(.01)
-        raise RuntimeError("IDEA did not acknowledge copying the editor contents")
+        raise RuntimeError(f"IDEA did not acknowledge {key} in the editor")
 
     def _wait_for_copied_text(self, expected: set[str]) -> None:
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline:
-            if self._copied_text(deadline) in expected:
+            if self._clipboard_text(deadline) in expected:
                 return
             time.sleep(.05)
         raise RuntimeError("IDEA editor contents did not reach the expected selection state")
@@ -329,15 +332,17 @@ class XdotoolInput:
         if expected_contents is not None:
             # Copy acknowledges which widget handles input after project startup.
             editor_lines = set(expected_contents.splitlines(keepends=True)) | {"\n", "\r\n"}
-            if self._copied_text(time.monotonic() + 5) not in editor_lines:
+            if self._clipboard_text(time.monotonic() + 5) not in editor_lines:
                 self.press_key("Escape")
                 self._wait_for_copied_text(editor_lines)
         self.press_key("ctrl+a")
         if expected_contents is not None:
             self._wait_for_copied_text({expected_contents})
-        self.press_key("BackSpace")
-        if expected_contents is not None:
-            self._wait_for_copied_text({"", "\n", "\r\n"})
+            # Cut publishes the selected text from the handler that clears it.
+            if self._clipboard_text(time.monotonic() + 5, "ctrl+x") != expected_contents:
+                raise RuntimeError("IDEA did not cut the entire benchmark fixture")
+        else:
+            self.press_key("BackSpace")
 
     def type_character(self, character: str) -> None:
         self._require_focus()

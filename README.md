@@ -24,6 +24,9 @@ raw JSON for every editor. An incomplete or invalid matrix is not published.
   pinned version's welcome-state keys in its SQLite storage, then opens the
   benchmark fixture. The trial starts settling only after a visible Cursor
   window title contains the fixture name.
+- IntelliJ IDEA acknowledges editor focus, whole-fixture selection, and Cut
+  through the X11 clipboard, then verifies that the cleared file was saved.
+  These setup actions finish before CPU and RSS sampling.
 - Startup and settling happen before typing. The default X11 driver focuses the
   visible window whose title contains the fixture name and verifies focus
   before each input. Trials invalidate on focus loss, and the saved file must
@@ -49,7 +52,7 @@ short-lived children that remain visible between samples.
 
 ```sh
 sudo apt-get update
-sudo apt-get install -y python3 curl xz-utils xvfb xauth openbox \
+sudo apt-get install -y python3 curl xz-utils xvfb xauth openbox xdotool xclip \
   libgtk-3-0 libnss3 libgbm1 libxss1 libxtst6 libxkbcommon-x11-0 \
   mesa-utils mesa-vulkan-drivers libvulkan1 libasound2t64 openjdk-21-jre
 python3 scripts/install.py

@@ -312,7 +312,7 @@ def trial(editor, settle_seconds, sample_seconds, input_driver, cadence_seconds)
             elif editor["id"] == "zed":
                 keyboard.open_file(fixture.name)
             if editor["id"] == "idea":
-                keyboard.click_editor((800, 250))
+                keyboard.click_editor((800, 135))
                 # IDEA can restore tool-window focus while opening the project.
                 keyboard.press_key("Escape")
             if editor["id"] == "theia":

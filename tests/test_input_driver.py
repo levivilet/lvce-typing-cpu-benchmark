@@ -83,12 +83,16 @@ class InputDriverTests(unittest.TestCase):
                     if clock.now < self.focus_ready:
                         raise AssertionError("Select All reached IDEA before the editor had focus")
                     self.selection_ready = clock.now + .2
-                elif key == "BackSpace":
+                elif key == "ctrl+x":
                     if clock.now < self.selection_ready:
-                        raise AssertionError("Backspace reached the editor before Select All")
+                        raise AssertionError("Cut reached the editor before Select All")
                     self.deletion_ready = clock.now + .3
 
-            def _copied_text(self, deadline):
+            def _clipboard_text(self, deadline, key="ctrl+c"):
+                if key == "ctrl+x":
+                    self.press_key(key)
+                    clock.sleep(.3)
+                    return initial
                 if clock.now < self.focus_ready:
                     return "/project/typing-cpu.txt"
                 if clock.now >= self.deletion_ready:
@@ -118,13 +122,28 @@ class InputDriverTests(unittest.TestCase):
                 mock.patch("input_driver.time.monotonic", clock.monotonic), \
                 mock.patch("input_driver.time.sleep", clock.sleep), \
                 mock.patch("input_driver.subprocess.run", side_effect=responses):
-            self.assertEqual(keyboard._copied_text(1), "selected fixture")
+            self.assertEqual(keyboard._clipboard_text(1), "selected fixture")
         self.assertGreater(clock.now, 0)
+
+    def test_cut_is_sent_only_once_while_waiting_for_its_acknowledgement(self):
+        keyboard = XdotoolInput.__new__(XdotoolInput)
+        clock = Clock()
+        marker = "typing-cpu-clipboard-123"
+        responses = [mock.Mock(), mock.Mock(returncode=0, stdout=marker),
+                     mock.Mock(returncode=0, stdout=marker),
+                     mock.Mock(returncode=0, stdout="selected fixture")]
+        with mock.patch.object(keyboard, "press_key") as press, \
+                mock.patch("input_driver.time.monotonic_ns", return_value=123), \
+                mock.patch("input_driver.time.monotonic", clock.monotonic), \
+                mock.patch("input_driver.time.sleep", clock.sleep), \
+                mock.patch("input_driver.subprocess.run", side_effect=responses):
+            self.assertEqual(keyboard._clipboard_text(1, "ctrl+x"), "selected fixture")
+        press.assert_called_once_with("ctrl+x")
 
     def test_selection_readiness_rejects_input_in_another_widget(self):
         keyboard = XdotoolInput.__new__(XdotoolInput)
         clock = Clock()
-        with mock.patch.object(keyboard, "_copied_text", return_value="project/file.txt"), \
+        with mock.patch.object(keyboard, "_clipboard_text", return_value="project/file.txt"), \
                 mock.patch("input_driver.time.monotonic", clock.monotonic), \
                 mock.patch("input_driver.time.sleep", clock.sleep):
             with self.assertRaisesRegex(RuntimeError, "expected selection state"):
