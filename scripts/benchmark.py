@@ -149,6 +149,15 @@ def wait_for_cursor_workbench(fixture, timeout=30):
 def typing_measurement(process, keyboard, fixture, duration_seconds, cadence_seconds):
     """Type into the editor while sampling its complete process tree."""
     started = time.monotonic()
+    diagnostic_input_count = 0
+
+    def send_character(character):
+        nonlocal diagnostic_input_count
+        keyboard.type_character(character)
+        diagnostic_input_count += 1
+        if hasattr(keyboard, "capture_setup") and diagnostic_input_count <= 3:
+            keyboard.capture_setup(f"input-{diagnostic_input_count}")
+
     previous = process_tree(process.pid)
     tick_total = 0
     memory_samples = []
@@ -169,7 +178,7 @@ def typing_measurement(process, keyboard, fixture, duration_seconds, cadence_sec
 
     characters = expected_text(math.ceil(duration_seconds / cadence_seconds))
     offsets = type_at_cadence(characters, cadence_seconds, duration_seconds,
-                              keyboard.type_character, sample)
+                              send_character, sample)
     elapsed = time.monotonic() - started
     keyboard.save()
     deadline = time.monotonic() + 5
@@ -293,16 +302,37 @@ def trial(editor, settle_seconds, sample_seconds, input_driver, cadence_seconds)
                 keyboard.press_key("Return")
                 time.sleep(.5)
             if editor["id"] == "idea":
+                diagnostics = ROOT / "results" / "setup"
+                diagnostics.mkdir(parents=True, exist_ok=True)
+                timeline = []
+
+                def capture_setup(phase):
+                    focused = subprocess.run(
+                        ["xdotool", "getwindowfocus", "getwindowname"],
+                        capture_output=True, text=True, check=False,
+                    )
+                    timeline.append({"phase": phase, "time": time.monotonic(),
+                                     "window": focused.stdout.strip(),
+                                     "fixture": fixture.read_text()})
+                    (diagnostics / "timeline.json").write_text(json.dumps(timeline, indent=2))
+                    subprocess.run(["import", "-window", "root", str(diagnostics / f"{phase}.png")],
+                                   capture_output=True, timeout=5, check=False)
+
+                keyboard.capture_setup = capture_setup
                 keyboard.open_idea_file(fixture.name)
+                capture_setup("opened")
             elif editor["id"] == "zed":
                 keyboard.open_file(fixture.name)
             if editor["id"] == "idea":
                 keyboard.click_editor((800, 250))
+                capture_setup("clicked")
             if editor["id"] == "theia":
                 keyboard.open_selected_file()
             if editor["id"] == "theia":
                 keyboard.click_editor(click_positions["theia"])
             keyboard.clear()
+            if editor["id"] == "idea":
+                capture_setup("cleared")
             time.sleep(.5)
             measurement = typing_measurement(process, keyboard, fixture,
                                              sample_seconds, cadence_seconds)
