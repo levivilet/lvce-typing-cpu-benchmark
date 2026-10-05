@@ -146,6 +146,17 @@ def wait_for_cursor_workbench(fixture, timeout=30):
     raise RuntimeError(f"Cursor did not show the benchmark fixture {fixture.name}")
 
 
+def wait_for_cleared_fixture(fixture, timeout=5):
+    """Require the editor to save its cleared buffer before measuring input."""
+    deadline = time.monotonic() + timeout
+    while True:
+        if fixture.read_text() == "":
+            return
+        if time.monotonic() >= deadline:
+            raise RuntimeError("editor did not save the cleared benchmark fixture")
+        time.sleep(.1)
+
+
 def typing_measurement(process, keyboard, fixture, duration_seconds, cadence_seconds):
     """Type into the editor while sampling its complete process tree."""
     started = time.monotonic()
@@ -303,6 +314,9 @@ def trial(editor, settle_seconds, sample_seconds, input_driver, cadence_seconds)
             if editor["id"] == "theia":
                 keyboard.click_editor(click_positions["theia"])
             keyboard.clear()
+            if editor["id"] == "idea":
+                keyboard.save()
+                wait_for_cleared_fixture(fixture)
             time.sleep(.5)
             measurement = typing_measurement(process, keyboard, fixture,
                                              sample_seconds, cadence_seconds)

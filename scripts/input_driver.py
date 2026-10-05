@@ -38,7 +38,7 @@ class XdotoolInput:
         subprocess.run(["xdotool", "windowfocus", "--sync", self.window_id], check=True)
         x, y = self.click_position
         subprocess.run(["xdotool", "mousemove", "--window", self.window_id, str(x), str(y)], check=True)
-        subprocess.run(["xdotool", "click", "--window", self.window_id, "1"], check=True)
+        subprocess.run(["xdotool", "click", "1"], check=True)
         self._require_focus()
 
     def _require_focus(self) -> None:
@@ -123,7 +123,7 @@ class XdotoolInput:
         x, y = position
         subprocess.run(["xdotool", "mousemove", "--window", self.window_id,
                         str(x), str(y)], check=True)
-        subprocess.run(["xdotool", "click", "--window", self.window_id, "1"], check=True)
+        subprocess.run(["xdotool", "click", "1"], check=True)
         self._require_focus()
 
     def close_welcome(self) -> None:

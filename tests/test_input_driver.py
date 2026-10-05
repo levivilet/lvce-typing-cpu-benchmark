@@ -53,7 +53,16 @@ class InputDriverTests(unittest.TestCase):
         self.assertEqual(keyboard.window_id, "123")
         self.assertEqual(run.call_args_list[1].args[0], ["xdotool", "windowfocus", "--sync", "123"])
         self.assertEqual(run.call_args_list[2].args[0], ["xdotool", "mousemove", "--window", "123", "800", "250"])
+        self.assertEqual(run.call_args_list[3].args[0], ["xdotool", "click", "1"])
         self.assertEqual(run.call_args_list[4].args[0], ["xdotool", "getwindowfocus", "getwindowname"])
+
+    def test_editor_click_uses_pointer_input_instead_of_top_level_send_event(self):
+        keyboard = XdotoolInput.__new__(XdotoolInput)
+        keyboard.window_id = "123"
+        with mock.patch.object(keyboard, "_require_focus"), \
+                mock.patch("input_driver.subprocess.run") as run:
+            keyboard.click_editor((800, 250))
+        self.assertEqual(run.call_args_list[-1].args[0], ["xdotool", "click", "1"])
 
     def test_xdotool_driver_rejects_missing_fixture_window(self):
         with mock.patch("input_driver.subprocess.run", return_value=mock.Mock(
