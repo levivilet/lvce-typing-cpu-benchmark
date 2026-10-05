@@ -240,7 +240,7 @@ def trial(editor, settle_seconds, sample_seconds, input_driver, cadence_seconds)
         fixture = workspace / "typing-cpu.txt"
         initial_contents = "Typing CPU benchmark fixture.\n"
         if editor["id"] == "idea":
-            # Two lines distinguish Select All from IDEA's copy-current-line action.
+            # Two lines distinguish whole-buffer selection from selecting one line.
             initial_contents += "Selection readiness sentinel.\n"
         fixture.write_text(initial_contents)
         command = command_for(editor, home)
