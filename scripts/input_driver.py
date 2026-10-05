@@ -76,6 +76,7 @@ class XdotoolInput:
                 self.focus_patterns = [pattern]
                 subprocess.run(["xdotool", "windowfocus", "--sync", window], check=True)
                 self._require_focus()
+                self.open_file(filename, "ctrl+shift+n")
                 return
             time.sleep(.25)
         raise RuntimeError(f"IntelliJ IDEA did not open the fixture {filename} in a project")
@@ -123,7 +124,7 @@ class XdotoolInput:
         x, y = position
         subprocess.run(["xdotool", "mousemove", "--window", self.window_id,
                         str(x), str(y)], check=True)
-        subprocess.run(["xdotool", "click", "--window", self.window_id, "1"], check=True)
+        subprocess.run(["xdotool", "click", "1"], check=True)
         self._require_focus()
 
     def close_welcome(self) -> None:
@@ -302,10 +303,49 @@ class XdotoolInput:
                     break
                 time.sleep(.25)
 
-    def clear(self) -> None:
+    def _clipboard_text(self, deadline: float, key: str = "ctrl+c") -> str:
+        marker = f"typing-cpu-clipboard-{time.monotonic_ns()}"
+        subprocess.run(["xclip", "-selection", "clipboard"], input=marker, text=True,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True, timeout=2)
+        self.press_key(key)
+        while time.monotonic() < deadline:
+            copied = subprocess.run(["xclip", "-selection", "clipboard", "-o"],
+                                    capture_output=True, text=True, check=False, timeout=2)
+            if copied.returncode == 0 and copied.stdout != marker:
+                return copied.stdout
+            time.sleep(.01)
+        raise RuntimeError(f"IDEA did not acknowledge {key} in the editor")
+
+    def _wait_for_selection(self, expected: set[str]) -> None:
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            selection = subprocess.run(["xclip", "-selection", "primary", "-o"],
+                                       capture_output=True, text=True, check=False, timeout=2)
+            if selection.returncode == 0 and selection.stdout in expected:
+                return
+            time.sleep(.05)
+        raise RuntimeError("IDEA editor contents did not reach the expected selection state")
+
+    def clear(self, expected_contents: str | None = None) -> None:
         self._require_focus()
-        subprocess.run(["xdotool", "key", "--clearmodifiers", "ctrl+a"], check=True)
-        subprocess.run(["xdotool", "key", "--clearmodifiers", "BackSpace"], check=True)
+        if expected_contents is not None:
+            # Replace stale selection data before obtaining a fresh editor selection.
+            subprocess.run(["xclip", "-selection", "primary"], input="typing-cpu-selection",
+                           text=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                           check=True, timeout=2)
+            subprocess.run(["xdotool", "mousemove", "--window", self.window_id,
+                            "550", "135"], check=True)
+            subprocess.run(["xdotool", "click", "--repeat", "2", "--delay", "150", "1"],
+                           check=True)
+            self._wait_for_selection({expected_contents.split()[0], expected_contents})
+        self.press_key("ctrl+a")
+        if expected_contents is not None:
+            # PRIMARY reports selection without Copy's current-line side effects.
+            self._wait_for_selection({expected_contents})
+            if self._clipboard_text(time.monotonic() + 5, "ctrl+x") != expected_contents:
+                raise RuntimeError("IDEA did not cut the entire benchmark fixture")
+        else:
+            self.press_key("BackSpace")
 
     def type_character(self, character: str) -> None:
         self._require_focus()

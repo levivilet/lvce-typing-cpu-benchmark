@@ -146,6 +146,17 @@ def wait_for_cursor_workbench(fixture, timeout=30):
     raise RuntimeError(f"Cursor did not show the benchmark fixture {fixture.name}")
 
 
+def wait_for_cleared_fixture(fixture, timeout=5):
+    """Require the editor to save its cleared buffer before measuring input."""
+    deadline = time.monotonic() + timeout
+    while True:
+        if fixture.read_text() == "":
+            return
+        if time.monotonic() >= deadline:
+            raise RuntimeError("editor did not save the cleared benchmark fixture")
+        time.sleep(.1)
+
+
 def typing_measurement(process, keyboard, fixture, duration_seconds, cadence_seconds):
     """Type into the editor while sampling its complete process tree."""
     started = time.monotonic()
@@ -227,7 +238,11 @@ def trial(editor, settle_seconds, sample_seconds, input_driver, cadence_seconds)
         workspace = home / "typing-cpu"
         workspace.mkdir()
         fixture = workspace / "typing-cpu.txt"
-        fixture.write_text("Typing CPU benchmark fixture.\n")
+        initial_contents = "Typing CPU benchmark fixture.\n"
+        if editor["id"] == "idea":
+            # Two lines distinguish whole-buffer selection from selecting one line.
+            initial_contents += "Selection readiness sentinel.\n"
+        fixture.write_text(initial_contents)
         command = command_for(editor, home)
         if editor["id"] == "eclipse":
             workspace_index = command.index("-data") + 1
@@ -297,12 +312,19 @@ def trial(editor, settle_seconds, sample_seconds, input_driver, cadence_seconds)
             elif editor["id"] == "zed":
                 keyboard.open_file(fixture.name)
             if editor["id"] == "idea":
-                keyboard.click_editor((800, 250))
+                keyboard.click_editor((800, 135))
+                # IDEA can restore tool-window focus while opening the project.
+                keyboard.press_key("Escape")
             if editor["id"] == "theia":
                 keyboard.open_selected_file()
             if editor["id"] == "theia":
                 keyboard.click_editor(click_positions["theia"])
-            keyboard.clear()
+            if editor["id"] == "idea":
+                keyboard.clear(initial_contents)
+                keyboard.save()
+                wait_for_cleared_fixture(fixture)
+            else:
+                keyboard.clear()
             time.sleep(.5)
             measurement = typing_measurement(process, keyboard, fixture,
                                              sample_seconds, cadence_seconds)

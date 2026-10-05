@@ -55,6 +55,94 @@ class InputDriverTests(unittest.TestCase):
         self.assertEqual(run.call_args_list[2].args[0], ["xdotool", "mousemove", "--window", "123", "800", "250"])
         self.assertEqual(run.call_args_list[4].args[0], ["xdotool", "getwindowfocus", "getwindowname"])
 
+    def test_editor_click_uses_pointer_input_instead_of_top_level_send_event(self):
+        keyboard = XdotoolInput.__new__(XdotoolInput)
+        keyboard.window_id = "123"
+        with mock.patch.object(keyboard, "_require_focus"), \
+                mock.patch("input_driver.subprocess.run") as run:
+            keyboard.click_editor((800, 250))
+        self.assertEqual(run.call_args_list[-1].args[0], ["xdotool", "click", "1"])
+
+    def test_clear_waits_for_selection_and_cut_before_save(self):
+        clock = Clock()
+        initial = "First fixture line.\nSecond fixture line.\n"
+        keyboard = XdotoolInput.__new__(XdotoolInput)
+        keyboard.window_id = "123"
+        events = []
+        def selection(expected):
+            events.append(("selection", expected))
+            clock.sleep(.2)
+        def cut(deadline, key):
+            self.assertEqual(events[-1], ("selection", {initial}))
+            self.assertEqual(key, "ctrl+x")
+            clock.sleep(.3)
+            events.append(("cut", initial))
+            return initial
+        with mock.patch.object(keyboard, "_require_focus"), \
+                mock.patch.object(keyboard, "press_key", side_effect=lambda key: events.append(key)), \
+                mock.patch.object(keyboard, "_wait_for_selection", side_effect=selection), \
+                mock.patch.object(keyboard, "_clipboard_text", side_effect=cut), \
+                mock.patch("input_driver.subprocess.run"), \
+                mock.patch("input_driver.time.monotonic", clock.monotonic):
+            keyboard.clear(initial)
+        self.assertEqual(events, [("selection", {"First", initial}), "ctrl+a",
+                                  ("selection", {initial}), ("cut", initial)])
+
+    def test_copied_text_rejects_a_stale_clipboard_value(self):
+        keyboard = XdotoolInput.__new__(XdotoolInput)
+        clock = Clock()
+        marker = "typing-cpu-clipboard-123"
+        responses = [mock.Mock(), mock.Mock(returncode=0, stdout=marker),
+                     mock.Mock(returncode=0, stdout="selected fixture")]
+        with mock.patch.object(keyboard, "press_key"), \
+                mock.patch("input_driver.time.monotonic_ns", return_value=123), \
+                mock.patch("input_driver.time.monotonic", clock.monotonic), \
+                mock.patch("input_driver.time.sleep", clock.sleep), \
+                mock.patch("input_driver.subprocess.run", side_effect=responses):
+            self.assertEqual(keyboard._clipboard_text(1), "selected fixture")
+        self.assertGreater(clock.now, 0)
+
+    def test_cut_is_sent_only_once_while_waiting_for_its_acknowledgement(self):
+        keyboard = XdotoolInput.__new__(XdotoolInput)
+        clock = Clock()
+        marker = "typing-cpu-clipboard-123"
+        responses = [mock.Mock(), mock.Mock(returncode=0, stdout=marker),
+                     mock.Mock(returncode=0, stdout=marker),
+                     mock.Mock(returncode=0, stdout="selected fixture")]
+        with mock.patch.object(keyboard, "press_key") as press, \
+                mock.patch("input_driver.time.monotonic_ns", return_value=123), \
+                mock.patch("input_driver.time.monotonic", clock.monotonic), \
+                mock.patch("input_driver.time.sleep", clock.sleep), \
+                mock.patch("input_driver.subprocess.run", side_effect=responses):
+            self.assertEqual(keyboard._clipboard_text(1, "ctrl+x"), "selected fixture")
+        press.assert_called_once_with("ctrl+x")
+
+    def test_selection_readback_waits_without_sending_copy_or_changing_selection(self):
+        keyboard = XdotoolInput.__new__(XdotoolInput)
+        clock = Clock()
+        selected = "First fixture line.\nSecond fixture line.\n"
+        responses = [mock.Mock(returncode=0, stdout="typing-cpu-selection"),
+                     mock.Mock(returncode=0, stdout="First"),
+                     mock.Mock(returncode=0, stdout=selected)]
+        with mock.patch("input_driver.subprocess.run", side_effect=responses) as run, \
+                mock.patch.object(keyboard, "press_key") as press, \
+                mock.patch("input_driver.time.monotonic", clock.monotonic), \
+                mock.patch("input_driver.time.sleep", clock.sleep):
+            keyboard._wait_for_selection({selected})
+        self.assertGreater(clock.now, 0)
+        press.assert_not_called()
+        self.assertTrue(all(call.args[0] == ["xclip", "-selection", "primary", "-o"]
+                            for call in run.call_args_list))
+
+    def test_selection_readiness_rejects_input_in_another_widget(self):
+        keyboard = XdotoolInput.__new__(XdotoolInput)
+        clock = Clock()
+        with mock.patch("input_driver.subprocess.run", return_value=mock.Mock(returncode=0, stdout="project/file.txt")), \
+                mock.patch("input_driver.time.monotonic", clock.monotonic), \
+                mock.patch("input_driver.time.sleep", clock.sleep):
+            with self.assertRaisesRegex(RuntimeError, "expected selection state"):
+                keyboard._wait_for_selection({"First fixture line.\nSecond fixture line.\n"})
+
     def test_xdotool_driver_rejects_missing_fixture_window(self):
         with mock.patch("input_driver.subprocess.run", return_value=mock.Mock(
                 returncode=1, stdout="", stderr="")):
@@ -87,17 +175,19 @@ class InputDriverTests(unittest.TestCase):
                          ["xdotool", "mousemove", "--window", "456", "289", "431"])
         self.assertEqual(run.call_args_list[3].args[0], ["xdotool", "click", "1"])
 
-    def test_idea_keeps_an_already_open_fixture_tab(self):
+    def test_idea_navigates_to_the_fixture_before_relying_on_editor_focus(self):
         keyboard = XdotoolInput.__new__(XdotoolInput)
         keyboard.window_id = "123"
         with mock.patch.object(keyboard, "_require_focus"), \
                 mock.patch.object(keyboard, "_visible_window", return_value="456"), \
+                mock.patch.object(keyboard, "open_file") as open_file, \
                 mock.patch("input_driver.subprocess.run") as run:
             keyboard.open_idea_file("typing-cpu.txt")
         self.assertEqual(keyboard.window_id, "456")
         self.assertEqual(run.call_args_list[0].args[0],
                          ["xdotool", "windowfocus", "--sync", "456"])
         self.assertEqual(keyboard.focus_patterns, [r"^typing-cpu .*typing\-cpu\.txt$"])
+        open_file.assert_called_once_with("typing-cpu.txt", "ctrl+shift+n")
 
 
 if __name__ == "__main__":

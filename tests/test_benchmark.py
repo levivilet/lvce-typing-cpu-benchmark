@@ -10,6 +10,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import benchmark
 
 
+class FixtureReadinessTests(unittest.TestCase):
+    def test_waits_for_the_saved_clear_instead_of_the_window_title(self):
+        fixture = mock.Mock()
+        fixture.read_text.side_effect = ["original fixture", "original fixture", ""]
+        with mock.patch.object(benchmark.time, "sleep") as sleep:
+            benchmark.wait_for_cleared_fixture(fixture)
+        self.assertEqual(sleep.call_count, 2)
+
+    def test_rejects_a_clear_sent_to_a_different_widget(self):
+        fixture = mock.Mock()
+        fixture.read_text.return_value = "original fixture"
+        with self.assertRaisesRegex(RuntimeError, "cleared benchmark fixture"):
+            benchmark.wait_for_cleared_fixture(fixture, timeout=0)
+
+
 class CursorBenchmarkTests(unittest.TestCase):
     def setUp(self):
         self.editor = benchmark.load_editor("cursor")
