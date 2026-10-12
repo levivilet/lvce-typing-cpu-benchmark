@@ -59,7 +59,7 @@ def process_tree(root_pid: int, proc_root: str | Path = "/proc") -> dict[int, in
             continue
         try:
             parent, _ = _stat(entry / "stat")
-        except (FileNotFoundError, PermissionError, ValueError):
+        except (FileNotFoundError, ProcessLookupError, PermissionError, ValueError):
             continue
         parents[int(entry.name)] = parent
     result = {root_pid}
@@ -74,7 +74,7 @@ def process_tree(root_pid: int, proc_root: str | Path = "/proc") -> dict[int, in
     for pid in result:
         try:
             counters[pid] = _stat(root / str(pid) / "stat")[1]
-        except (FileNotFoundError, PermissionError, ValueError):
+        except (FileNotFoundError, ProcessLookupError, PermissionError, ValueError):
             if pid == root_pid:
                 raise ValueError("root process disappeared")
     return counters
@@ -88,7 +88,7 @@ def process_tree_memory_kb(root_pid: int, proc_root: str | Path = "/proc") -> in
     for pid in pids:
         try:
             status = (root / str(pid) / "status").read_text()
-        except (FileNotFoundError, PermissionError):
+        except (FileNotFoundError, ProcessLookupError, PermissionError):
             if pid == root_pid:
                 raise ValueError("root process disappeared")
             continue

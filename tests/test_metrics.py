@@ -5,12 +5,13 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "scripts"))
 
 from metrics import (
     CpuStat, aggregate_cpu, counter_delta, measure_process_tree, summarize_memory,
-    utilization_percent,
+    process_tree, process_tree_memory_kb, utilization_percent,
 )
 
 
@@ -66,3 +67,33 @@ class MetricsTest(unittest.TestCase):
         finally:
             process.terminate()
             process.wait(timeout=5)
+
+    def test_process_disappearing_during_proc_scan_is_ignored(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "10").mkdir()
+            (root / "11").mkdir()
+            def stat(path):
+                if path.parent.name == "11":
+                    raise ProcessLookupError(3, "No such process")
+                return (0, 42)
+            with patch("metrics._stat", side_effect=stat):
+                self.assertEqual(process_tree(10, root), {10: 42})
+
+    def test_root_disappearing_during_proc_scan_invalidates_measurement(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "10").mkdir()
+            with patch("metrics._stat", side_effect=ProcessLookupError(3, "No such process")):
+                with self.assertRaisesRegex(ValueError, "root process disappeared"):
+                    process_tree(10, root)
+
+    def test_descendant_disappearing_during_memory_read_is_ignored(self):
+        def read(path, *args, **kwargs):
+            if path.parent.name == "11":
+                raise ProcessLookupError(3, "No such process")
+            return "VmRSS: 123 kB\n"
+        with patch("metrics.process_tree", return_value={10: 42, 11: 2}), patch.object(Path, "read_text", read):
+            self.assertEqual(process_tree_memory_kb(10), 123)
+            with self.assertRaisesRegex(ValueError, "root process disappeared"):
+                process_tree_memory_kb(11)
