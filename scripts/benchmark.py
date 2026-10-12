@@ -223,7 +223,7 @@ def trial(editor, settle_seconds, sample_seconds, input_driver, cadence_seconds)
         runtime.chmod(0o700)
         environment = {
             **os.environ,
-            "HOME": str(home),
+            "HOME": os.environ.get("HOME", str(home)) if editor["id"] == "lvce" else str(home),
             "XDG_CONFIG_HOME": str(home / "config"),
             "XDG_DATA_HOME": str(home / "data"),
             "XDG_CACHE_HOME": str(home / "cache"),

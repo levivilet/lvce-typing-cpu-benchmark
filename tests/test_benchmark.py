@@ -1,5 +1,6 @@
 from pathlib import Path
 import sqlite3
+import os
 import tempfile
 import unittest
 from unittest import mock
@@ -78,6 +79,28 @@ class CursorBenchmarkTests(unittest.TestCase):
             self.assertEqual(run.call_args_list[0].args[0][:4], [
                 "xdotool", "search", "--onlyvisible", "--name"
             ])
+
+
+class LvceProfileTests(unittest.TestCase):
+    def test_lvce_preserves_home_and_isolates_application_directories(self):
+        process = mock.Mock()
+        process.poll.return_value = None
+        with mock.patch.dict(os.environ, {"HOME": "/real-home"}), \
+                mock.patch.object(benchmark, "command_for", return_value=["fake-lvce"]), \
+                mock.patch.object(benchmark.subprocess, "Popen", return_value=process) as launch, \
+                mock.patch.object(benchmark, "make_input"), \
+                mock.patch.object(benchmark, "typing_measurement", return_value={}), \
+                mock.patch.object(benchmark, "terminate_process_group"), \
+                mock.patch.object(benchmark.time, "sleep"):
+            result = benchmark.trial(benchmark.load_editor("lvce"), 0, 180, "xdotool", 1)
+        self.assertTrue(result["valid"])
+        environment = launch.call_args.kwargs["env"]
+        self.assertEqual(environment["HOME"], "/real-home")
+        directories = [environment[f"XDG_{kind}_HOME"] for kind in ("CONFIG", "DATA", "CACHE", "STATE")]
+        self.assertEqual(len(set(directories)), 4)
+        for directory in directories:
+            self.assertTrue(Path(directory).parent.parent.name.startswith("typing-cpu-lvce-"), directory)
+            self.assertNotIn("/real-home", directory)
 
 
 if __name__ == "__main__":
