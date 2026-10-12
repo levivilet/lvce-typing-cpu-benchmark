@@ -75,7 +75,8 @@ compositor that accepts the ydotool uinput keyboard before selecting Wayland.
 ## CI
 
 Every CI trial types for 180 seconds. Pull requests run one trial per
-locked editor after 5 seconds of settling, then run the accounting tests. Pushes,
+locked editor (three for IDEA and Theia to cover startup readiness) after
+5 seconds of settling, then run the accounting tests. Pushes,
 scheduled runs, and manual runs use three fresh trials per editor, each after
 10 seconds of settling, and upload raw JSON artifacts. The workflow intentionally does not claim
 that a benchmark is complete when a trial is invalid.

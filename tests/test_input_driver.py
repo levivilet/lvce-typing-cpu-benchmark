@@ -69,7 +69,8 @@ class InputDriverTests(unittest.TestCase):
         keyboard = XdotoolInput.__new__(XdotoolInput)
         keyboard.window_id = "123"
         events = []
-        def selection(expected):
+        def selection(expected, restore_selection):
+            self.assertEqual(restore_selection, keyboard._restore_fixture_selection)
             events.append(("selection", expected))
             clock.sleep(.2)
         def cut(deadline, key):
@@ -142,6 +143,54 @@ class InputDriverTests(unittest.TestCase):
                 mock.patch("input_driver.time.sleep", clock.sleep):
             with self.assertRaisesRegex(RuntimeError, "expected selection state"):
                 keyboard._wait_for_selection({"First fixture line.\nSecond fixture line.\n"})
+
+    def test_selection_restores_editor_focus_before_acknowledgement_without_cutting(self):
+        keyboard = XdotoolInput.__new__(XdotoolInput)
+        clock = Clock()
+        responses = [mock.Mock(returncode=0, stdout="stale selection"),
+                     mock.Mock(returncode=0, stdout="whole fixture")]
+        restore = mock.Mock()
+        with mock.patch("input_driver.subprocess.run", side_effect=responses), \
+                mock.patch("input_driver.time.monotonic", clock.monotonic), \
+                mock.patch("input_driver.time.sleep", clock.sleep), \
+                mock.patch.object(keyboard, "press_key") as press:
+            keyboard._wait_for_selection({"whole fixture"}, restore)
+        restore.assert_called_once_with()
+        press.assert_not_called()
+
+    def test_selection_restoration_is_bounded_and_still_rejects_wrong_contents(self):
+        keyboard = XdotoolInput.__new__(XdotoolInput)
+        clock = Clock()
+        restore = mock.Mock()
+        with mock.patch("input_driver.subprocess.run", return_value=mock.Mock(returncode=0, stdout="wrong widget")), \
+                mock.patch("input_driver.time.monotonic", clock.monotonic), \
+                mock.patch("input_driver.time.sleep", clock.sleep):
+            with self.assertRaisesRegex(RuntimeError, "expected selection state"):
+                keyboard._wait_for_selection({"whole fixture"}, restore)
+        self.assertEqual(restore.call_count, 3)
+
+    def test_file_dialog_disappearing_before_geometry_is_successful_only_after_focus_check(self):
+        keyboard = XdotoolInput.__new__(XdotoolInput)
+        search = mock.Mock(returncode=0, stdout="456\n")
+        missing = mock.Mock(returncode=1, stdout="")
+        with mock.patch.object(keyboard, "_require_focus") as focus, \
+                mock.patch.object(keyboard, "_visible_window", side_effect=["456", None]), \
+                mock.patch("input_driver.subprocess.run", side_effect=[mock.Mock(), search, mock.Mock(), mock.Mock(), missing]), \
+                mock.patch("input_driver.time.sleep"):
+            keyboard.open_selected_file()
+        self.assertEqual(focus.call_count, 2)
+
+    def test_file_dialog_geometry_error_is_not_ignored_when_dialog_remains(self):
+        keyboard = XdotoolInput.__new__(XdotoolInput)
+        search = mock.Mock(returncode=0, stdout="456\n")
+        missing = mock.Mock(returncode=1, stdout="")
+        missing.check_returncode.side_effect = RuntimeError("geometry failed")
+        with mock.patch.object(keyboard, "_require_focus"), \
+                mock.patch.object(keyboard, "_visible_window", return_value="456"), \
+                mock.patch("input_driver.subprocess.run", side_effect=[mock.Mock(), search, mock.Mock(), mock.Mock(), missing]), \
+                mock.patch("input_driver.time.sleep"):
+            with self.assertRaisesRegex(RuntimeError, "geometry failed"):
+                keyboard.open_selected_file()
 
     def test_xdotool_driver_rejects_missing_fixture_window(self):
         with mock.patch("input_driver.subprocess.run", return_value=mock.Mock(

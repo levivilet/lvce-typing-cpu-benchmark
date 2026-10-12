@@ -107,8 +107,14 @@ class XdotoolInput:
         if dialog_still_open:
             geometry = subprocess.run(
                 ["xdotool", "getwindowgeometry", "--shell", dialog_still_open],
-                capture_output=True, text=True, check=True,
+                capture_output=True, text=True, check=False,
             )
+            if geometry.returncode != 0:
+                # The dialog can finish opening the selected file between discovery and geometry lookup.
+                if self._visible_window("^Open File$") is None:
+                    self._require_focus()
+                    return
+                geometry.check_returncode()
             dimensions = dict(
                 line.split("=", 1) for line in geometry.stdout.splitlines() if "=" in line
             )
@@ -316,15 +322,24 @@ class XdotoolInput:
             time.sleep(.01)
         raise RuntimeError(f"IDEA did not acknowledge {key} in the editor")
 
-    def _wait_for_selection(self, expected: set[str]) -> None:
+    def _wait_for_selection(self, expected: set[str], restore_selection=None) -> None:
         deadline = time.monotonic() + 5
+        restores = 0
         while time.monotonic() < deadline:
             selection = subprocess.run(["xclip", "-selection", "primary", "-o"],
                                        capture_output=True, text=True, check=False, timeout=2)
             if selection.returncode == 0 and selection.stdout in expected:
                 return
+            if restore_selection is not None and restores < 3:
+                restore_selection()
+                restores += 1
             time.sleep(.05)
         raise RuntimeError("IDEA editor contents did not reach the expected selection state")
+
+    def _restore_fixture_selection(self) -> None:
+        # IDEA startup can move focus after the first click; selecting again is nondestructive.
+        self.click_editor((550, 135))
+        self.press_key("ctrl+a")
 
     def clear(self, expected_contents: str | None = None) -> None:
         self._require_focus()
@@ -337,11 +352,11 @@ class XdotoolInput:
                             "550", "135"], check=True)
             subprocess.run(["xdotool", "click", "--repeat", "2", "--delay", "150", "1"],
                            check=True)
-            self._wait_for_selection({expected_contents.split()[0], expected_contents})
+            self._wait_for_selection({expected_contents.split()[0], expected_contents}, self._restore_fixture_selection)
         self.press_key("ctrl+a")
         if expected_contents is not None:
             # PRIMARY reports selection without Copy's current-line side effects.
-            self._wait_for_selection({expected_contents})
+            self._wait_for_selection({expected_contents}, self._restore_fixture_selection)
             if self._clipboard_text(time.monotonic() + 5, "ctrl+x") != expected_contents:
                 raise RuntimeError("IDEA did not cut the entire benchmark fixture")
         else:
