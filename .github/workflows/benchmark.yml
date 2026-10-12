@@ -66,7 +66,9 @@ jobs:
       - name: Measure CPU and memory while typing
         run: |
           if [[ "${{ github.event_name }}" == pull_request ]]; then
-            bash scripts/run.sh --editor "${{ matrix.editor }}" --repeats 1 --settle-seconds 5 --sample-seconds 180 --cadence-seconds 1
+            repeats=1
+            if [[ "${{ matrix.editor }}" == idea || "${{ matrix.editor }}" == theia ]]; then repeats=3; fi
+            bash scripts/run.sh --editor "${{ matrix.editor }}" --repeats "$repeats" --settle-seconds 5 --sample-seconds 180 --cadence-seconds 1
           else
             bash scripts/run.sh --editor "${{ matrix.editor }}" --sample-seconds 180 --cadence-seconds 1
           fi
