@@ -213,6 +213,16 @@ def typing_measurement(process, keyboard, fixture, duration_seconds, cadence_sec
     }
 
 
+def prepare_zed_profile(home):
+    # --user-data-dir redirects Zed's config to this private profile/config.
+    # Only the generated text fixture is opened in this disposable profile.
+    config = home / "profile/config"
+    config.mkdir(parents=True, exist_ok=True)
+    (config / "settings.json").write_text(json.dumps({
+        "session": {"trust_all_worktrees": True}
+    }) + "\n")
+
+
 def trial(editor, settle_seconds, sample_seconds, input_driver, cadence_seconds):
     with tempfile.TemporaryDirectory(prefix=f"typing-cpu-{editor['id']}-") as directory:
         home = Path(directory) / "home"
@@ -266,6 +276,8 @@ def trial(editor, settle_seconds, sample_seconds, input_driver, cadence_seconds)
         stderr_path = home / "stderr.log"
         process = None
         try:
+            if editor["id"] == "zed":
+                prepare_zed_profile(home)
             if editor["id"] == "cursor":
                 prepare_cursor_profile(editor, home, environment,
                                        home / "cursor-bootstrap.stdout.log",

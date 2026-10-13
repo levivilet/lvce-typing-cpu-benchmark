@@ -92,3 +92,8 @@ layout work. This deliberately limited control supports printable keyboard input
 backspace, select-all, left/right and save. It has no syntax services, undo/redo,
 IME, mouse selection or viewport virtualization. It estimates the cost of this
 specific worker/render workload, rather than a lower bound for full editors.
+
+The disposable Zed profile trusts the generated fixture to prevent the first-open
+trust dialog from intercepting benchmark input. This uses Zed's documented
+[`session.trust_all_worktrees` setting](https://zed.dev/docs/worktree-trust) only
+under the trial's private `--user-data-dir`; real user settings are preserved.

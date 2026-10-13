@@ -1,5 +1,6 @@
 from pathlib import Path
 import sqlite3
+import json
 import os
 import tempfile
 import unittest
@@ -105,3 +106,33 @@ class LvceProfileTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ZedProfileTests(unittest.TestCase):
+    def test_trust_setting_is_scoped_to_the_custom_disposable_profile(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            benchmark.prepare_zed_profile(home)
+            settings = json.loads((home / "profile/config/settings.json").read_text())
+            self.assertEqual(settings, {"session": {"trust_all_worktrees": True}})
+            self.assertFalse((home / "config/zed/settings.json").exists())
+
+    def test_profile_is_ready_before_launching_zed(self):
+        process = mock.Mock()
+        process.poll.return_value = None
+        def launch(command, **options):
+            home = Path(options["env"]["HOME"])
+            self.assertTrue((home / "profile/config/settings.json").exists())
+            self.assertEqual(json.loads((home / "profile/config/settings.json").read_text()),
+                             {"session": {"trust_all_worktrees": True}})
+            return process
+        with (
+            mock.patch.object(benchmark, "command_for", return_value=["fake-zed"]),
+            mock.patch.object(benchmark.subprocess, "Popen", side_effect=launch),
+            mock.patch.object(benchmark, "make_input"),
+            mock.patch.object(benchmark, "typing_measurement", return_value={}),
+            mock.patch.object(benchmark, "terminate_process_group"),
+            mock.patch.object(benchmark.time, "sleep"),
+        ):
+            result = benchmark.trial(benchmark.load_editor("zed"), 0, 180, "xdotool", 1)
+        self.assertTrue(result["valid"])
