@@ -4,7 +4,7 @@ const vm = require('node:vm')
 
 const element = {dataset: {}, style: {}, focus() {}, addEventListener(_name, callback) { this.keydown = callback }}
 const text = {textContent: ''}
-const cursor = {style: {}}
+const cursor = {style: {}, scrollIntoView() {}}
 const writes = []
 let resolveWrite
 let worker

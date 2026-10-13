@@ -83,7 +83,8 @@ that a benchmark is complete when a trial is invalid.
 
 The **Worker/div Electron** control uses the same pinned Electron archive as Basic
 Electron. Keyboard events go to a web worker that owns the document and selection;
-ordered responses update separate text and cursor divs. Saves snapshot all prior
+ordered responses update separate text and cursor divs, scrolling the cursor
+into view as the line grows. Saves snapshot all prior
 input in that worker and write in order. The textarea control remains available.
 This deliberately limited control supports printable keyboard input, newlines,
 backspace, select-all, left/right and save. It has no syntax services, undo/redo,

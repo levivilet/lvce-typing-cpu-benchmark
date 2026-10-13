@@ -28,6 +28,7 @@ worker.onmessage = ({data}) => {
   acknowledged = data.sequence
   text.textContent = data.text
   cursor.style.transform = `translate(${data.column * characterWidth}px, ${data.row * 20}px)`
+  cursor.scrollIntoView({block: 'nearest', inline: 'nearest'})
   editorElement.dataset.sequence = String(acknowledged)
   if (data.type === 'initialize') {
     ready = true
