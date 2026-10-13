@@ -11,6 +11,31 @@ const canvas = document.createElement('canvas')
 const context = canvas.getContext('2d')
 context.font = getComputedStyle(editorElement).font
 const characterWidth = context.measureText('M').width
+let viewportWidth = editorElement.clientWidth
+let viewportHeight = editorElement.clientHeight
+let scrollLeft = 0
+let scrollTop = 0
+editorElement.addEventListener('scroll', () => {
+  scrollLeft = editorElement.scrollLeft
+  scrollTop = editorElement.scrollTop
+})
+new ResizeObserver(() => {
+  viewportWidth = editorElement.clientWidth
+  viewportHeight = editorElement.clientHeight
+}).observe(editorElement)
+
+function revealCursor(column, row) {
+  const x = 16 + column * characterWidth
+  const y = 16 + row * 20
+  const nextLeft = x < scrollLeft + 16 ? Math.max(0, x - 16)
+    : x + 1 > scrollLeft + viewportWidth - 16 ? x + 1 - viewportWidth + 16 : scrollLeft
+  const nextTop = y < scrollTop + 16 ? Math.max(0, y - 16)
+    : y + 20 > scrollTop + viewportHeight - 16 ? y + 20 - viewportHeight + 16 : scrollTop
+  // Geometry is already known from the worker. Avoid forcing layout on every
+  // keystroke; write scroll offsets only when the cursor leaves the viewport.
+  if (nextLeft !== scrollLeft) editorElement.scrollLeft = scrollLeft = nextLeft
+  if (nextTop !== scrollTop) editorElement.scrollTop = scrollTop = nextTop
+}
 
 function fail(error) {
   failed = true
@@ -28,7 +53,7 @@ worker.onmessage = ({data}) => {
   acknowledged = data.sequence
   text.textContent = data.text
   cursor.style.transform = `translate(${data.column * characterWidth}px, ${data.row * 20}px)`
-  cursor.scrollIntoView({block: 'nearest', inline: 'nearest'})
+  revealCursor(data.column, data.row)
   editorElement.dataset.sequence = String(acknowledged)
   if (data.type === 'initialize') {
     ready = true

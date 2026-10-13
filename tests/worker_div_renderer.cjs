@@ -2,7 +2,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const vm = require('node:vm')
 
-const element = {dataset: {}, style: {}, focus() {}, addEventListener(_name, callback) { this.keydown = callback }}
+const element = {clientWidth: 1280, clientHeight: 720, scrollLeft: 0, scrollTop: 0, dataset: {}, style: {}, focus() {}, addEventListener(_name, callback) { this.keydown = callback }}
 const text = {textContent: ''}
 const cursor = {style: {}, scrollIntoView() {}}
 const writes = []
@@ -18,7 +18,7 @@ class Worker {
   postMessage(data) { this.self.onmessage({data}) }
 }
 const context = {
-  Worker, console,
+  Worker, console, ResizeObserver: class { observe() {} },
   getComputedStyle: () => ({font: '16px monospace'}),
   document: {
     querySelector: selector => ({'#editor': element, '#text': text, '#cursor': cursor})[selector],
