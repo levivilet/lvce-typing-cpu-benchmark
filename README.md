@@ -86,7 +86,9 @@ Electron. Keyboard events go to a web worker that owns the document and selectio
 ordered responses update separate text and cursor divs, scrolling the cursor
 into view as the line grows. Saves snapshot all prior
 input in that worker and write in order. The textarea control remains available.
-This deliberately limited control supports printable keyboard input, newlines,
+The custom control displays unwrapped monospaced lines with horizontal scrolling;
+the textarea control wraps by default. Their burst results include different
+layout work. This deliberately limited control supports printable keyboard input, newlines,
 backspace, select-all, left/right and save. It has no syntax services, undo/redo,
 IME, mouse selection or viewport virtualization. It estimates the cost of this
 specific worker/render workload, rather than a lower bound for full editors.

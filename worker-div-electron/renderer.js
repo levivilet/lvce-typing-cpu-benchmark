@@ -1,6 +1,8 @@
 const editorElement = document.querySelector('#editor')
 const text = document.querySelector('#text')
 const cursor = document.querySelector('#cursor')
+const textNode = document.createTextNode('')
+text.appendChild(textNode)
 const worker = new Worker('worker.js')
 let sequence = 0
 let acknowledged = 0
@@ -51,7 +53,11 @@ worker.onmessage = ({data}) => {
   if (data.error) return fail(data.error)
   if (data.sequence !== acknowledged + 1) return fail('Out-of-order response')
   acknowledged = data.sequence
-  text.textContent = data.text
+  if (data.text.startsWith(textNode.data)) {
+    textNode.appendData(data.text.slice(textNode.length))
+  } else {
+    textNode.data = data.text
+  }
   cursor.style.transform = `translate(${data.column * characterWidth}px, ${data.row * 20}px)`
   revealCursor(data.column, data.row)
   editorElement.dataset.sequence = String(acknowledged)

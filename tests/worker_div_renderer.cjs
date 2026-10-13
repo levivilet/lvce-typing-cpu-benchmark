@@ -3,7 +3,7 @@ const fs = require('node:fs')
 const vm = require('node:vm')
 
 const element = {clientWidth: 1280, clientHeight: 720, scrollLeft: 0, scrollTop: 0, dataset: {}, style: {}, focus() {}, addEventListener(_name, callback) { this.keydown = callback }}
-const text = {textContent: ''}
+const text = {appendChild(node) { this.node = node }, get textContent() { return this.node?.data || '' }}
 const cursor = {style: {}, scrollIntoView() {}}
 const writes = []
 let resolveWrite
@@ -22,6 +22,7 @@ const context = {
   getComputedStyle: () => ({font: '16px monospace'}),
   document: {
     querySelector: selector => ({'#editor': element, '#text': text, '#cursor': cursor})[selector],
+    createTextNode: data => ({data, get length() { return this.data.length }, appendData(value) { this.data += value }}),
     createElement: () => ({getContext: () => ({measureText: () => ({width: 10})})}),
   },
 }
