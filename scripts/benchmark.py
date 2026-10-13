@@ -42,8 +42,8 @@ def command_for(editor, home):
         return [editor["binary"]]
     if not binary.exists():
         raise FileNotFoundError(f"install first: {binary}")
-    common = ["--disable-gpu"] if editor["id"] in {"lvce", "vscode", "cursor", "basic-electron", "theia", "atom"} else []
-    if editor["id"] in {"lvce", "vscode", "cursor", "theia", "atom", "basic-electron"}:
+    common = ["--disable-gpu"] if editor["id"] in {"lvce", "vscode", "cursor", "basic-electron", "worker-div-electron", "theia", "atom"} else []
+    if editor["id"] in {"lvce", "vscode", "cursor", "theia", "atom", "basic-electron", "worker-div-electron"}:
         common += ["--no-sandbox"]
     if editor["id"] in {"lvce", "vscode", "cursor"}:
         common += ["--user-data-dir", str(home / "profile")]
@@ -51,7 +51,7 @@ def command_for(editor, home):
         common += ["--disable-extensions", "--skip-welcome", "--skip-release-notes"]
     if editor["id"] == "cursor":
         common += ["--disable-extensions", "--disable-workspace-trust", "--skip-welcome", "--skip-release-notes", "--new-window"]
-    if editor["id"] == "basic-electron":
+    if editor["id"] in {"basic-electron", "worker-div-electron"}:
         common += ["--ozone-platform=x11", str(ROOT / editor["app"])]
     if editor["id"] == "zed":
         common += ["--user-data-dir", str(home / "profile")]
@@ -247,7 +247,7 @@ def trial(editor, settle_seconds, sample_seconds, input_driver, cadence_seconds)
         if editor["id"] == "eclipse":
             workspace_index = command.index("-data") + 1
             command[workspace_index] = str(fixture.parent)
-        if editor["id"] == "basic-electron" and input_driver == "ydotool":
+        if editor["id"] in {"basic-electron", "worker-div-electron"} and input_driver == "ydotool":
             command.remove("--ozone-platform=x11")
             command.append("--ozone-platform=wayland")
         if editor["id"] == "eclipse":
@@ -291,6 +291,7 @@ def trial(editor, settle_seconds, sample_seconds, input_driver, cadence_seconds)
             }
             click_positions = {
                 "basic-electron": (200, 160),
+                "worker-div-electron": (200, 160),
                 "lapce": (500, 150),
                 "lvce": (200, 160),
                 "theia": (500, 150),

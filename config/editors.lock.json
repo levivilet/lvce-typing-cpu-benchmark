@@ -100,5 +100,16 @@
     "binary": "geany",
     "package": "geany",
     "notes": "Installed from the Ubuntu 26.04 runner image package source."
+  },
+  {
+    "id": "worker-div-electron",
+    "name": "Worker/div Electron",
+    "version": "Electron 44.3.0",
+    "archive": "electron-v44.3.0-linux-x64.zip",
+    "url": "https://github.com/electron/electron/releases/download/v44.3.0/electron-v44.3.0-linux-x64.zip",
+    "sha256": "8b49b9efdd73c0f467edc3c1cd5678392c384ccf224f34ff54179f736e2f384b",
+    "binary": "electron",
+    "app": "worker-div-electron",
+    "notes": "Minimal ASCII keyboard editor: a web worker owns text and cursor; separate renderer divs display both. No syntax services, undo, IME, or mouse selection."
   }
 ]
