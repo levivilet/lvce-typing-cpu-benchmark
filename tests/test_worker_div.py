@@ -8,6 +8,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class WorkerDivTests(unittest.TestCase):
+    def test_renderer_bridge_readiness_cursor_and_serialized_saves(self):
+        subprocess.run(['node', 'tests/worker_div_renderer.cjs'], cwd=ROOT, check=True, capture_output=True)
+
     def run_worker(self, messages):
         script = """
 const fs = require('node:fs');
