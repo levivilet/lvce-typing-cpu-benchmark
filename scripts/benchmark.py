@@ -157,6 +157,24 @@ def wait_for_cleared_fixture(fixture, timeout=5):
         time.sleep(.1)
 
 
+def prepare_lvce_fixture(keyboard, fixture, initial_contents):
+    keyboard.clear()
+    keyboard.save()
+    try:
+        wait_for_cleared_fixture(fixture)
+    except RuntimeError:
+        if fixture.read_text() != initial_contents:
+            raise
+        # The first focus/selection gesture can precede editor readiness. Once
+        # the unchanged fixture is observed, cut from the start (selection or
+        # the single fixture line) and require its exact saved acknowledgement.
+        keyboard.press_key("ctrl+Home")
+        keyboard.press_key("ctrl+a")
+        keyboard.press_key("ctrl+x")
+        keyboard.save()
+        wait_for_cleared_fixture(fixture)
+
+
 def typing_measurement(process, keyboard, fixture, duration_seconds, cadence_seconds):
     """Type into the editor while sampling its complete process tree."""
     started = time.monotonic()
@@ -336,6 +354,8 @@ def trial(editor, settle_seconds, sample_seconds, input_driver, cadence_seconds)
                 keyboard.clear(initial_contents)
                 keyboard.save()
                 wait_for_cleared_fixture(fixture)
+            elif editor["id"] == "lvce":
+                prepare_lvce_fixture(keyboard, fixture, initial_contents)
             else:
                 keyboard.clear()
             time.sleep(.5)

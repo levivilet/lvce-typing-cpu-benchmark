@@ -91,6 +91,7 @@ class LvceProfileTests(unittest.TestCase):
                 mock.patch.object(benchmark.subprocess, "Popen", return_value=process) as launch, \
                 mock.patch.object(benchmark, "make_input"), \
                 mock.patch.object(benchmark, "typing_measurement", return_value={}), \
+                mock.patch.object(benchmark, "prepare_lvce_fixture"), \
                 mock.patch.object(benchmark, "terminate_process_group"), \
                 mock.patch.object(benchmark.time, "sleep"):
             result = benchmark.trial(benchmark.load_editor("lvce"), 0, 180, "xdotool", 1)
@@ -136,3 +137,47 @@ class ZedProfileTests(unittest.TestCase):
         ):
             result = benchmark.trial(benchmark.load_editor("zed"), 0, 180, "xdotool", 1)
         self.assertTrue(result["valid"])
+
+
+class LvceFixturePreparationTests(unittest.TestCase):
+    def test_waits_for_saved_empty_buffer_before_measurement(self):
+        keyboard = mock.Mock()
+        with mock.patch.object(benchmark, "wait_for_cleared_fixture") as wait:
+            benchmark.prepare_lvce_fixture(keyboard, mock.Mock(), "initial")
+        keyboard.clear.assert_called_once()
+        keyboard.save.assert_called_once()
+        keyboard.press_key.assert_not_called()
+        wait.assert_called_once()
+
+    def test_recovers_unchanged_initial_fixture_once_after_readiness_failure(self):
+        keyboard = mock.Mock()
+        fixture = mock.Mock()
+        fixture.read_text.return_value = "initial"
+        with mock.patch.object(benchmark, "wait_for_cleared_fixture",
+                               side_effect=[RuntimeError("not cleared"), None]) as wait:
+            benchmark.prepare_lvce_fixture(keyboard, fixture, "initial")
+        self.assertEqual(keyboard.press_key.call_args_list, [
+            mock.call("ctrl+Home"), mock.call("ctrl+a"), mock.call("ctrl+x")
+        ])
+        self.assertEqual(keyboard.save.call_count, 2)
+        self.assertEqual(wait.call_count, 2)
+
+    def test_rejects_unexpected_buffer_changes(self):
+        keyboard = mock.Mock()
+        fixture = mock.Mock()
+        fixture.read_text.return_value = "unexpected"
+        with mock.patch.object(benchmark, "wait_for_cleared_fixture",
+                               side_effect=RuntimeError("not cleared")):
+            with self.assertRaisesRegex(RuntimeError, "not cleared"):
+                benchmark.prepare_lvce_fixture(keyboard, fixture, "initial")
+        keyboard.press_key.assert_not_called()
+
+    def test_second_clear_failure_still_invalidates_trial(self):
+        keyboard = mock.Mock()
+        fixture = mock.Mock()
+        fixture.read_text.return_value = "initial"
+        with mock.patch.object(benchmark, "wait_for_cleared_fixture",
+                               side_effect=RuntimeError("not cleared")) as wait:
+            with self.assertRaisesRegex(RuntimeError, "not cleared"):
+                benchmark.prepare_lvce_fixture(keyboard, fixture, "initial")
+        self.assertEqual(wait.call_count, 2)
