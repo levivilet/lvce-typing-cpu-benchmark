@@ -42,8 +42,8 @@ def command_for(editor, home):
         return [editor["binary"]]
     if not binary.exists():
         raise FileNotFoundError(f"install first: {binary}")
-    common = ["--disable-gpu"] if editor["id"] in {"lvce", "vscode", "cursor", "basic-electron", "theia", "atom"} else []
-    if editor["id"] in {"lvce", "vscode", "cursor", "theia", "atom", "basic-electron"}:
+    common = ["--disable-gpu"] if editor["id"] in {"lvce", "vscode", "cursor", "basic-electron", "worker-div-electron", "theia", "atom"} else []
+    if editor["id"] in {"lvce", "vscode", "cursor", "theia", "atom", "basic-electron", "worker-div-electron"}:
         common += ["--no-sandbox"]
     if editor["id"] in {"lvce", "vscode", "cursor"}:
         common += ["--user-data-dir", str(home / "profile")]
@@ -51,7 +51,7 @@ def command_for(editor, home):
         common += ["--disable-extensions", "--skip-welcome", "--skip-release-notes"]
     if editor["id"] == "cursor":
         common += ["--disable-extensions", "--disable-workspace-trust", "--skip-welcome", "--skip-release-notes", "--new-window"]
-    if editor["id"] == "basic-electron":
+    if editor["id"] in {"basic-electron", "worker-div-electron"}:
         common += ["--ozone-platform=x11", str(ROOT / editor["app"])]
     if editor["id"] == "zed":
         common += ["--user-data-dir", str(home / "profile")]
@@ -157,6 +157,24 @@ def wait_for_cleared_fixture(fixture, timeout=5):
         time.sleep(.1)
 
 
+def prepare_lvce_fixture(keyboard, fixture, initial_contents):
+    keyboard.clear()
+    keyboard.save()
+    try:
+        wait_for_cleared_fixture(fixture)
+    except RuntimeError:
+        if fixture.read_text() != initial_contents:
+            raise
+        # The first focus/selection gesture can precede editor readiness. Once
+        # the unchanged fixture is observed, cut from the start (selection or
+        # the single fixture line) and require its exact saved acknowledgement.
+        keyboard.press_key("ctrl+Home")
+        keyboard.press_key("ctrl+a")
+        keyboard.press_key("ctrl+x")
+        keyboard.save()
+        wait_for_cleared_fixture(fixture)
+
+
 def typing_measurement(process, keyboard, fixture, duration_seconds, cadence_seconds):
     """Type into the editor while sampling its complete process tree."""
     started = time.monotonic()
@@ -213,6 +231,16 @@ def typing_measurement(process, keyboard, fixture, duration_seconds, cadence_sec
     }
 
 
+def prepare_zed_profile(home):
+    # --user-data-dir redirects Zed's config to this private profile/config.
+    # Only the generated text fixture is opened in this disposable profile.
+    config = home / "profile/config"
+    config.mkdir(parents=True, exist_ok=True)
+    (config / "settings.json").write_text(json.dumps({
+        "session": {"trust_all_worktrees": True}
+    }) + "\n")
+
+
 def trial(editor, settle_seconds, sample_seconds, input_driver, cadence_seconds):
     with tempfile.TemporaryDirectory(prefix=f"typing-cpu-{editor['id']}-") as directory:
         home = Path(directory) / "home"
@@ -247,7 +275,7 @@ def trial(editor, settle_seconds, sample_seconds, input_driver, cadence_seconds)
         if editor["id"] == "eclipse":
             workspace_index = command.index("-data") + 1
             command[workspace_index] = str(fixture.parent)
-        if editor["id"] == "basic-electron" and input_driver == "ydotool":
+        if editor["id"] in {"basic-electron", "worker-div-electron"} and input_driver == "ydotool":
             command.remove("--ozone-platform=x11")
             command.append("--ozone-platform=wayland")
         if editor["id"] == "eclipse":
@@ -266,6 +294,8 @@ def trial(editor, settle_seconds, sample_seconds, input_driver, cadence_seconds)
         stderr_path = home / "stderr.log"
         process = None
         try:
+            if editor["id"] == "zed":
+                prepare_zed_profile(home)
             if editor["id"] == "cursor":
                 prepare_cursor_profile(editor, home, environment,
                                        home / "cursor-bootstrap.stdout.log",
@@ -291,6 +321,7 @@ def trial(editor, settle_seconds, sample_seconds, input_driver, cadence_seconds)
             }
             click_positions = {
                 "basic-electron": (200, 160),
+                "worker-div-electron": (200, 160),
                 "lapce": (500, 150),
                 "lvce": (200, 160),
                 "theia": (500, 150),
@@ -323,6 +354,8 @@ def trial(editor, settle_seconds, sample_seconds, input_driver, cadence_seconds)
                 keyboard.clear(initial_contents)
                 keyboard.save()
                 wait_for_cleared_fixture(fixture)
+            elif editor["id"] == "lvce":
+                prepare_lvce_fixture(keyboard, fixture, initial_contents)
             else:
                 keyboard.clear()
             time.sleep(.5)

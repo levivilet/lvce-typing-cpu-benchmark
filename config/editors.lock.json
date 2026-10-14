@@ -2,10 +2,10 @@
   {
     "id": "lvce",
     "name": "LVCE Editor",
-    "version": "v0.122.13",
-    "archive": "lvce-v0.122.13_amd64.deb",
-    "url": "https://github.com/lvce-editor/lvce-editor/releases/download/v0.122.13/lvce-v0.122.13_amd64.deb",
-    "sha256": "1ee9a525204601db4bf354a962a822a3fef124d5f291f31823f371ec94707a70",
+    "version": "v0.122.14",
+    "archive": "lvce-v0.122.14_amd64.deb",
+    "url": "https://github.com/lvce-editor/lvce-editor/releases/download/v0.122.14/lvce-v0.122.14_amd64.deb",
+    "sha256": "4ade3b9e18a1dbb894037c9edca9ac6876d58004c4fe6961cc0b9e308643c37d",
     "binary": "usr/lib/lvce/lvce"
   },
   {
@@ -100,5 +100,16 @@
     "binary": "geany",
     "package": "geany",
     "notes": "Installed from the Ubuntu 26.04 runner image package source."
+  },
+  {
+    "id": "worker-div-electron",
+    "name": "Worker/div Electron",
+    "version": "Electron 44.3.0",
+    "archive": "electron-v44.3.0-linux-x64.zip",
+    "url": "https://github.com/electron/electron/releases/download/v44.3.0/electron-v44.3.0-linux-x64.zip",
+    "sha256": "8b49b9efdd73c0f467edc3c1cd5678392c384ccf224f34ff54179f736e2f384b",
+    "binary": "electron",
+    "app": "worker-div-electron",
+    "notes": "Minimal ASCII keyboard editor: a web worker owns text and cursor; separate renderer divs display both. No syntax services, undo, IME, or mouse selection."
   }
 ]

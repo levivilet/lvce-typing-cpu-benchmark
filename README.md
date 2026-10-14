@@ -80,3 +80,20 @@ locked editor (three for IDEA and Theia to cover startup readiness) after
 scheduled runs, and manual runs use three fresh trials per editor, each after
 10 seconds of settling, and upload raw JSON artifacts. The workflow intentionally does not claim
 that a benchmark is complete when a trial is invalid.
+
+The **Worker/div Electron** control uses the same pinned Electron archive as Basic
+Electron. Keyboard events go to a web worker that owns the document and selection;
+ordered responses update separate text and cursor divs, scrolling the cursor
+into view as the line grows. Saves snapshot all prior
+input in that worker and write in order. The textarea control remains available.
+The custom control displays unwrapped monospaced lines with horizontal scrolling;
+the textarea control wraps by default. Their burst results include different
+layout work. This deliberately limited control supports printable keyboard input, newlines,
+backspace, select-all, left/right and save. It has no syntax services, undo/redo,
+IME, mouse selection or viewport virtualization. It estimates the cost of this
+specific worker/render workload, rather than a lower bound for full editors.
+
+The disposable Zed profile trusts the generated fixture to prevent the first-open
+trust dialog from intercepting benchmark input. This uses Zed's documented
+[`session.trust_all_worktrees` setting](https://zed.dev/docs/worktree-trust) only
+under the trial's private `--user-data-dir`; real user settings are preserved.
