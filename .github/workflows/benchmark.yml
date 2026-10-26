@@ -23,9 +23,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        editor: [lvce, vscode, cursor, zed, geany, eclipse, idea, atom, lapce, theia, basic-electron, worker-div-electron]
+        editor: [lvce, vscode, cursor, zed, geany, eclipse, idea, atom, lapce, theia, basic-electron, worker-div-electron, codemirror5, codemirror6]
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
       - name: Install desktop dependencies
         run: |
           sudo apt-get update

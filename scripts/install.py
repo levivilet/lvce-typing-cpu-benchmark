@@ -12,6 +12,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parent.parent
 LOCK = ROOT / "config/editors.lock.json"
+BUILD_APPS = {"codemirror5-electron", "codemirror-electron"}
 
 
 def checksum(path):
@@ -71,6 +72,10 @@ def main():
         archive = target / entry["archive"]
         download(entry, archive)
         extract(entry, archive, target / editor_id)
+        if entry.get("app") in BUILD_APPS:
+            app = ROOT / entry["app"]
+            subprocess.run(["npm", "ci"], cwd=app, check=True)
+            subprocess.run(["npm", "run", "build"], cwd=app, check=True)
         print(f"Verified {editor_id} {entry['sha256']}", flush=True)
 
 

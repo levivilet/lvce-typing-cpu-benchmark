@@ -27,6 +27,24 @@ class FixtureReadinessTests(unittest.TestCase):
             benchmark.wait_for_cleared_fixture(fixture, timeout=0)
 
 
+class CodeMirrorBenchmarkTests(unittest.TestCase):
+    def test_codemirror_apps_launch_with_isolated_electron_profiles(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for editor_id, app in (("codemirror5", "codemirror5-electron"),
+                                   ("codemirror6", "codemirror-electron")):
+                binary = root / ".tmp/apps" / editor_id / "electron"
+                binary.parent.mkdir(parents=True)
+                binary.touch()
+                editor = benchmark.load_editor(editor_id)
+                with mock.patch.object(benchmark, "ROOT", root):
+                    command = benchmark.command_for(editor, root / "home")
+                self.assertTrue(any(argument.startswith("--user-data-dir=") for argument in command))
+                self.assertIn("--no-sandbox", command)
+                self.assertIn("--ozone-platform=x11", command)
+                self.assertIn(str(root / app), command)
+
+
 class CursorBenchmarkTests(unittest.TestCase):
     def setUp(self):
         self.editor = benchmark.load_editor("cursor")
