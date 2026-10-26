@@ -39,3 +39,17 @@ class EditorLockTest(unittest.TestCase):
             install.download(entry, archive)
             self.assertEqual(archive.read_bytes(), payload)
             self.assertEqual(urlopen.call_args.args[0].get_header("User-agent"), "Mozilla/5.0")
+
+    def test_codemirror_apps_are_built_from_locked_dependencies(self):
+        self.assertEqual(install.BUILD_APPS, {"codemirror5-electron", "codemirror-electron"})
+        editors = json.loads((ROOT / "config/editors.lock.json").read_text())
+        self.assertEqual(len(editors), 14)
+        self.assertEqual({editor["id"] for editor in editors} & {"codemirror5", "codemirror6"},
+                         {"codemirror5", "codemirror6"})
+        for app, package in (("codemirror5-electron", "codemirror"),
+                             ("codemirror-electron", "@codemirror/view")):
+            manifest = json.loads((ROOT / app / "package.json").read_text())
+            lock = json.loads((ROOT / app / "package-lock.json").read_text())
+            self.assertIn(package, manifest["dependencies"])
+            self.assertEqual(lock["packages"][""]["dependencies"], manifest["dependencies"])
+            self.assertIn("esbuild", manifest["devDependencies"])

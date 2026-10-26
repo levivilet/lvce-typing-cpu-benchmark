@@ -14,12 +14,17 @@ compares median CPU utilization and resident memory while typing, and includes
 each trial, input timing, measurement source, run provenance, and downloadable
 raw JSON for every editor. An incomplete or invalid matrix is not published.
 
+CodeMirror 5 and CodeMirror 6 run in separate minimal Electron apps. Each app
+uses pinned npm dependencies and bundles its renderer during installation.
+
 ## Measurement protocol
 
 - Linux x86-64, Ubuntu 26.04, X11/Xvfb, one editor per runner. Each trial types
   a deterministic ASCII character every second for 180 seconds.
 - Downloads are described by `config/editors.lock.json`; every archive is
   verified before extraction. Profiles and XDG directories are temporary.
+- CodeMirror 5 and CodeMirror 6 use the same checksum-pinned Electron runtime
+  as the other Electron controls, with independent renderer implementations.
 - Cursor is pinned to 3.22.12. Each trial initializes a fresh profile, seeds the
   pinned version's welcome-state keys in its SQLite storage, then opens the
   benchmark fixture. The trial starts settling only after a visible Cursor
